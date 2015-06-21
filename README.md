@@ -3,6 +3,7 @@ FTP via cURL library for CodeIgniter
 
 Usage: 
 
+# Loading library
 ```sh
 $this->load->library('curlftp',
      array(
@@ -11,7 +12,7 @@ $this->load->library('curlftp',
         'password' => 'ftp_password'
     )
 );
-
+```
 # Get directory's listing
 ```sh
 $directory = $this->curlftp->dir('/public_html/');
