@@ -40,8 +40,13 @@ class Curlftp {
 
     //  params must be an array with configuration. 
     //  at least 'host','user','password' to override default values
-    public function __construct($params = array()) {
-        $this->_set($params);
+    public function __construct($params = array(), $reinit = false) {
+        $this->_init($params, $reinit);
+    }
+
+    public function _init($params = array(), $reinit = false) {
+        if (!$reinit)
+            $this->_set($params);
         $this->curl = curl_init();
     }
 
@@ -189,6 +194,8 @@ class Curlftp {
 
     public function _ftp_connect($threadid = false, $path = false, $initOnly = false) {
 
+
+
         if ($threadid == false) {
             $thread = $this->curl;
         } else {
@@ -210,9 +217,11 @@ class Curlftp {
         if ($initOnly)
             return true;
         $response = curl_exec($thread);
-        if ($response !== false)
+        if ($response !== false) {
+            $this->connection = true;
             return true;
-        $this->connection = true;
+        }
+
         return $response;
     }
 
@@ -228,13 +237,18 @@ class Curlftp {
     public function connect($force = false) {
         if ($this->connection != false && $force == false)
             return true;
+        if ($this->curl == false) {
+            $this->_init(array(), true);
+        }
         if ($this->_ftp_connect())
             return true;
         return false;
     }
 
     public function disconnect() {
+        $this->connection = false;
         curl_close($this->curl);
+        $this->curl = false;
     }
 
     public function parseDirList($listing, $order, $path = '/') {
@@ -245,6 +259,8 @@ class Curlftp {
             end($items);
             $key = key($items);
             $name = $items[$key];
+            if ($name == "." || $name == "..")
+                continue;
             $size = (int) $items[array_keys($items)[4]];
             if (mb_substr($items[0], 0, 1) == "d" || mb_substr($items[0], 0, 1) == "l") {
                 //  directory
@@ -335,6 +351,7 @@ class Curlftp {
             'chmod' => $dirinfo ? $dirinfo['chmod'] : false,
             'content' => false
         );
+        $tmp = false;
         foreach ($dir['content'] as $id => $file) {
             if ($file['type'] == 'file')
                 $tmp[] = $file;
@@ -431,9 +448,12 @@ class Curlftp {
         curl_setopt($this->curl, CURLOPT_INFILESIZE, filesize($local));
 
         $response = curl_exec($this->curl);
+
         if (curl_errno($this->curl)) {
+            $this->disconnect();
             return false;
         }
+        $this->disconnect();
         return true;
     }
 
@@ -442,20 +462,28 @@ class Curlftp {
         $folder = explode("/", $remote);
         unset($folder[count($folder) - 1]);
         $folder = implode("/", $folder) . "/";
-        curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $folder);
-        if ($this->_isDir($remote)) {
-            $response = $this->_ftp_query('RMD ' . $remote, true);
+        if ($this->connect() || $this->connect(true)) {
+            curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $folder);
+            if ($this->_isDir($remote)) {
+                $response = $this->_ftp_query('RMD ' . $remote, true);
+            } else {
+                $response = $this->_ftp_query('DELE ' . $remote, true);
+            }
+            return true;
         } else {
-            $response = $this->_ftp_query('DELE ' . $remote, true);
+            return false;
         }
-        return true;
     }
 
     function createDir($path) {
-        curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $path);
-        curl_setopt($this->curl, CURLOPT_FTP_CREATE_MISSING_DIRS, TRUE);
-        $response = curl_exec($this->curl);
-        return $response;
+        if ($this->connect() || $this->connect(true)) {
+            curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $path);
+            curl_setopt($this->curl, CURLOPT_FTP_CREATE_MISSING_DIRS, TRUE);
+            $response = curl_exec($this->curl);
+            return $response;
+        } else {
+            return false;
+        }
     }
 
 }
