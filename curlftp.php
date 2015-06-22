@@ -246,16 +246,17 @@ class Curlftp {
             $key = key($items);
             $name = $items[$key];
             $size = (int) $items[array_keys($items)[4]];
-            if (mb_substr($items[0], 0, 1) == "d") {
+            if (mb_substr($items[0], 0, 1) == "d" || mb_substr($items[0], 0, 1) == "l") {
                 //  directory
-                $folders[$name] = array(
-                    'name' => $name,
-                    'path' => '/' . $path . $name . '/',
-                    'size' => FALSE,
-                    'type' => 'dir',
-                    'chmod' => $this->_getCHMOD($items[0]),
-                    'content' => false
-                );
+                if ((mb_substr($items[0], 0, 1) == "l" && !isset($folders[$name])) || mb_substr($items[0], 0, 1) == "d")
+                    $folders[$name] = array(
+                        'name' => $name,
+                        'path' => '/' . $path . $name . '/',
+                        'size' => FALSE,
+                        'type' => 'dir',
+                        'chmod' => $this->_getCHMOD($items[0]),
+                        'content' => false
+                    );
             } else {
                 //  file
                 $files[$name] = array(
@@ -416,6 +417,45 @@ class Curlftp {
             }
         }
         return true;
+    }
+
+    function upload_file($local, $remote) {
+        if (!file_exists($local)) {
+            die('Local file ' . $local . ' doesn\'t exist');
+        }
+        curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $remote . basename($local));
+        $fp = fopen($local, 'r');
+        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($this->curl, CURLOPT_UPLOAD, 1);
+        curl_setopt($this->curl, CURLOPT_INFILE, $fp);
+        curl_setopt($this->curl, CURLOPT_INFILESIZE, filesize($local));
+
+        $response = curl_exec($this->curl);
+        if (curl_errno($this->curl)) {
+            return false;
+        }
+        return true;
+    }
+
+    function delete($remote) {
+        // get folder
+        $folder = explode("/", $remote);
+        unset($folder[count($folder) - 1]);
+        $folder = implode("/", $folder) . "/";
+        curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $folder);
+        if ($this->_isDir($remote)) {
+            $response = $this->_ftp_query('RMD ' . $remote, true);
+        } else {
+            $response = $this->_ftp_query('DELE ' . $remote, true);
+        }
+        return true;
+    }
+
+    function createDir($path) {
+        curl_setopt($this->curl, CURLOPT_URL, $this->configuration['ftp'] . $path);
+        curl_setopt($this->curl, CURLOPT_FTP_CREATE_MISSING_DIRS, TRUE);
+        $response = curl_exec($this->curl);
+        return $response;
     }
 
 }
