@@ -1,3 +1,6 @@
+# This repo is totally outdated, try to avoid using it
+### I will leave it here just as an example of myself years ago
+
 # curl-ftp
 FTP via cURL library for CodeIgniter
 
